@@ -1,4 +1,4 @@
-import os, glob, sys
+import os, glob, sys, functools
 from random import sample, randint
 import json, yaml
 from cluster import *
@@ -45,7 +45,8 @@ class job_generator:
             #job_json["dnn"] = "resnet20"
             job_json.update(TEMPLATES[job_json["dnn"]])
 
-            job_json["nworkers"] = 2 ** randint(0, 4)
+            #job_json["nworkers"] = 2 ** randint(0, 4)
+            job_json["nworkers"] = 2
             job_json["nsteps_update"] = 1
             job_json["cuda_enabled"] = 1
             job_json["iters"] = randint(1, 5)
@@ -493,7 +494,8 @@ class job_scheduler:
             }
             return nodes
             
-        for idx, job in enumerate(self.job_set):
+        flatten_jobs = functools.reduce(operator.iconcat, self.job_set, [])
+        for idx, job in enumerate(flatten_jobs):
 
             job_json = job.job_conf
             schedule = job_json.copy()
@@ -531,10 +533,12 @@ class job_scheduler:
         pass
 
 ## random job set for test
-#num_jobs = 32
-##jobG = job_generator("test_%djobs" % num_jobs, num_jobs)
-##jobG.random_generate()
-#jobS = job_scheduler("test_%djobs" % num_jobs)
+num_jobs = 2
+jobG = job_generator("test_%djobs" % num_jobs, num_jobs)
+jobG.random_generate()
+
+jobS = job_scheduler("test_%djobs" % num_jobs)
+jobS.write_allocate()
 
 ## microsoft-80 job set
 #jobG = job_generator("microsoft-80", 80)
@@ -544,9 +548,9 @@ class job_scheduler:
 # microsoft-160 job set
 #jobG = job_generator("microsoft-160", 160)
 #jobG.microsoft_generate()
-jobS = job_scheduler("microsoft-160")
+#jobS = job_scheduler("microsoft-160")
 
-jobS.print_dist()
+#jobS.print_dist()
 ## compare three comm algos
 #adopted_algo = 'blf-lswf-srsf-0-true'
 #if len(sys.argv) == 2:

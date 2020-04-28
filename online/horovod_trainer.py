@@ -16,7 +16,7 @@ from dl_job import DLJob
 from settings import logger, formatter
 
 def parse_timestamp(time_str):
-    year, month, day, hour, minute, second = [int(elem) for elem in time_str.split("_")]
+    year, month, day, hour, minute, second = [int(elem) for elem in time_str.split("-")]
     return datetime.datetime(year, month, day, hour, minute, second, 0) + datetime.timedelta(seconds=15)
 
 def ssgd_with_horovod(job, mode, start_dt):
@@ -43,7 +43,19 @@ def ssgd_with_horovod(job, mode, start_dt):
     trainer.set_train_epoch(int(hvd.broadcast(init_epoch, root_rank=0)[0]))
     trainer.set_train_iter(int(hvd.broadcast(init_iter, root_rank=0)[0]))
 
+    # bytescheduler wrapper
+    use_bytescheduler = int(os.environ.get('USE_BYTESCHEDULER', '0'))
+    if use_bytescheduler > 0:
+        #if args.partition:
+        #    os.environ["BYTESCHEDULER_PARTITION"] = str(1000 * args.partition)
+        import bytescheduler.pytorch.horovod as bsc
+        bsc.init()
+
     optimizer = hvd.DistributedOptimizer(trainer.optimizer, named_parameters=trainer.net.named_parameters())
+
+    if use_bytescheduler > 0:
+        optimizer = bsc.ScheduledOptimizer(trainer.net, optimizer, job.iters)
+
     hvd.broadcast_parameters(trainer.net.state_dict(), root_rank=0)
     trainer.update_optimizer(optimizer)
     #iters_per_epoch = trainer.get_num_of_training_samples() // (nworkers * batch_size * nsteps_update)
@@ -137,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--job-set', type=str, default="job_set_1", help='Specify the job set')
     parser.add_argument('--job-id', type=int, default=0, help='Specify the job id')
     parser.add_argument('--mode', type=str, default='simulate', help='Specify the running mode', choices=['real', 'simulate'])
-    parser.add_argument('--global-sync', type=str, default='2019_6_1_12_0_0_0', help='global synchronization timestamp')
+    parser.add_argument('--global-sync', type=str, default='2019-06-01-12-00-00', help='global synchronization timestamp')
     args = parser.parse_args()
 
     # create a job objective
